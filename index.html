@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <head>
+    <meta charset="UTF-8">
+    <title>AeroChat</title>
+    
+    <link rel="icon" type="image/png" href="logo.png">
+</head>
+    <meta charset="UTF-8">
+    <title>AeroChat Gold Edition</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        :root { 
+            --aero-blue: #0078d7; 
+            --aero-green: #61d836; 
+            --glass: rgba(255, 255, 255, 0.4);
+            --glass-border: rgba(255, 255, 255, 0.7);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', sans-serif; }
+        
+        body { 
+            background: radial-gradient(circle at top left, #e0f7ff, #8bd1ff, #0066cc); 
+            display: flex; height: 100vh; overflow: hidden; color: #0f2b4d; 
+        }
+
+        
+        .glass-panel { 
+            background: var(--glass); 
+            backdrop-filter: blur(15px); 
+            border: 1px solid var(--glass-border); 
+            box-shadow: 0 8px 32px rgba(0, 100, 200, 0.2);
+        }
+
+        .glossy-btn {
+            background: linear-gradient(180deg, #9fe1ff 0%, #30a5ff 49%, #007ced 50%, #45b1ff 100%);
+            border: 1px solid #005bb5;
+            box-shadow: inset 0 1px 2px rgba(255,255,255,0.8), 0 4px 6px rgba(0,0,0,0.1);
+            color: white; text-shadow: 0 1px 2px rgba(0,0,0,0.4);
+            border-radius: 20px; padding: 8px 15px; cursor: pointer; font-weight: bold; transition: 0.2s;
+        }
+        .glossy-btn:hover { filter: brightness(1.1); transform: translateY(-1px); }
+
+        
+        .nav-left { width: 80px; display: flex; flex-direction: column; align-items: center; padding: 20px 0; gap: 15px; border-right: 1px solid white; flex-shrink: 0; }
+        .sphere { 
+            width: 50px; height: 50px; border-radius: 50%; 
+            background: radial-gradient(circle at 30% 30%, #fff, #8bd1ff); 
+            display: flex; justify-content: center; align-items: center; 
+            font-weight: bold; color: var(--aero-blue); cursor: pointer; 
+            border: 1px solid white; box-shadow: 0 4px 10px rgba(0,0,0,0.2); flex-shrink: 0;
+        }
+
+        .panel-mid { width: 260px; display: flex; flex-direction: column; border-right: 1px solid white; }
+        .p-header { padding: 18px; font-weight: bold; background: rgba(255,255,255,0.5); border-bottom: 1px solid white; font-size: 1.1rem; }
+        
+        .room-list { padding: 15px; flex-grow: 1; overflow-y: auto; }
+        .room { 
+            padding: 10px 15px; border-radius: 12px; cursor: pointer; 
+            background: rgba(255,255,255,0.2); margin-bottom: 8px; 
+            transition: 0.2s; border: 1px solid transparent;
+        }
+        .room:hover { background: rgba(255,255,255,0.6); }
+        .room.active { background: white; color: var(--aero-blue); font-weight: bold; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+
+        .voice-users { padding-left: 25px; margin-bottom: 10px; display: flex; flex-direction: column; gap: 5px; }
+        .v-u { font-size: 0.8rem; display: flex; align-items: center; gap: 8px; font-weight: bold; color: white; text-shadow: 0 1px 2px rgba(0,0,0,0.5); }
+        .v-u img { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--aero-green); }
+
+        .chat-area { flex-grow: 1; display: flex; flex-direction: column; background: rgba(255,255,255,0.1); }
+        .messages { flex-grow: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 15px; }
+        .msg { display: flex; gap: 12px; }
+        .msg-content { background: rgba(255,255,255,0.8); padding: 10px 15px; border-radius: 0 15px 15px 15px; border: 1px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+
+        .panel-right { width: 230px; padding: 15px; border-left: 1px solid white; overflow-y: auto; }
+        .role-cat { font-size: 0.7rem; font-weight: 900; color: white; margin: 20px 0 8px 5px; text-transform: uppercase; letter-spacing: 1px; text-shadow: 0 1px 3px rgba(0,0,0,0.3); }
+        .mem { display: flex; align-items: center; gap: 10px; padding: 6px 10px; cursor: pointer; border-radius: 10px; transition: 0.2s; }
+        .mem:hover { background: rgba(255,255,255,0.3); }
+        .avatar { width: 38px; height: 38px; border-radius: 50%; object-fit: cover; border: 2px solid white; background: #fff; flex-shrink: 0;}
+
+        
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,50,150,0.3); backdrop-filter: blur(8px); justify-content: center; align-items: center; z-index: 2000; }
+        .m-content { background: rgba(255,255,255,0.95); padding: 30px; border-radius: 25px; width: 350px; text-align: center; border: 1px solid white; box-shadow: 0 20px 50px rgba(0,0,0,0.2); }
+        input, select, textarea { width: 100%; padding: 12px; margin: 10px 0; border-radius: 12px; border: 1px solid #bddbff; outline: none; background: white; }
+    </style>
+</head>
+<body>
+    <nav class="nav-left glass-panel" id="server-list"></nav>
+
+    <div class="panel-mid glass-panel">
+        <div class="p-header" id="srv-name">AeroChat</div>
+        <div class="room-list" id="chan-list"></div>
+        
+        <div id="adm-menu" style="display:none; padding:15px; border-top:1px solid rgba(255,255,255,0.5);">
+            <p style="font-size:0.7rem; font-weight:bold; margin-bottom:10px;">ADMINISTRATION</p>
+            <button class="glossy-btn" style="width:100%; margin-bottom:5px;" onclick="openModal('c-modal')">➕ Nouveau Salon</button>
+            <button class="glossy-btn" style="width:100%;" onclick="openModal('r-modal')">🛡️ Créer Rôle</button>
+        </div>
+
+        <div class="glass-panel" style="margin: 10px; padding: 12px; border-radius: 15px; display: flex; align-items: center; gap: 12px; cursor: pointer;" onclick="openModal('p-modal')">
+            <img id="my-av" class="avatar" src="">
+            <div style="overflow:hidden;">
+                <div id="my-n" style="font-weight:bold; font-size:0.9rem; white-space:nowrap; text-overflow:ellipsis;"></div>
+                <div style="font-size:0.7rem; color:var(--aero-green); font-weight:bold;">En ligne</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="chat-area">
+        <div class="p-header" id="chat-title"># tchat</div>
+        <div class="messages" id="chat-box"></div>
+        <div id="input-zone" style="padding:20px; display:flex; gap:12px; background:rgba(255,255,255,0.2); border-top:1px solid white;">
+            <input type="text" id="m-in" placeholder="Envoyer un message..." onkeypress="if(event.key==='Enter') send()" style="margin:0;">
+            <button class="glossy-btn" onclick="send()" style="width:100px;">Envoyer</button>
+        </div>
+    </div>
+
+    <div class="panel-right glass-panel" id="mem-list"></div>
+
+    <div class="modal" id="c-modal"><div class="m-content"><h2>Nouveau Salon</h2><input id="cn" placeholder="Nom du salon"><select id="ct"><option value="text">Salon Textuel</option><option value="voice">Salon Vocal</option></select><button class="glossy-btn" onclick="createC()">Créer</button><button onclick="closeModal('c-modal')" style="background:none; border:none; margin-top:10px; cursor:pointer;">Annuler</button></div></div>
+    <div class="modal" id="r-modal"><div class="m-content"><h2>Nouveau Rôle</h2><input id="rn" placeholder="Nom (ex: Admin)"><input type="color" id="rc" value="#0078d7"><button class="glossy-btn" onclick="createR()">Créer le rôle</button><button onclick="closeModal('r-modal')" style="background:none; border:none; margin-top:10px; cursor:pointer;">Fermer</button></div></div>
+    <div class="modal" id="s-modal"><div class="m-content"><h2>Nouveau Serveur</h2><input id="sn" placeholder="Nom de la Sphère"><input id="si" placeholder="Initiale" maxlength="1"><button class="glossy-btn" onclick="createS()">Créer la Sphère</button><button onclick="closeModal('s-modal')" style="background:none; border:none; margin-top:10px; cursor:pointer;">Annuler</button></div></div>
+    <div class="modal" id="p-modal"><div class="m-content"><h2>Mon Profil</h2><input id="pn" placeholder="Pseudo"><input id="pa" placeholder="URL de l'image"><textarea id="pb" placeholder="Ma bio..."></textarea><button class="glossy-btn" onclick="saveP()">Sauvegarder</button><button onclick="closeModal('p-modal')" style="background:none; border:none; margin-top:10px; cursor:pointer;">Fermer</button></div></div>
+    
+    <div class="modal" id="ins-modal"><div class="m-content">
+        <img id="i-a" class="avatar" style="width:90px; height:90px; margin-bottom:15px; border-width:4px;">
+        <h2 id="i-n"></h2>
+        <p id="i-b" style="font-size:0.9rem; margin:15px; color:#555; font-style:italic;"></p>
+        <div id="adm-assign" style="display:none; border-top:1px solid #ddd; padding-top:15px; margin-top:10px;">
+            <p style="font-size:0.7rem; font-weight:bold; color:var(--aero-blue);">MODÉRATION</p>
+            <select id="r-sel"></select>
+            <button class="glossy-btn" style="width:100%;" onclick="assignR()">Donner le rôle</button>
+        </div>
+        <button class="glossy-btn" style="background:#ccc; border:none; margin-top:15px;" onclick="closeModal('ins-modal')">Fermer</button>
+    </div></div>
+
+    <div class="modal" id="voice-modal"><div class="m-content">
+        <div style="font-size:4rem;">🔊</div>
+        <h2>Vocal Connecté</h2>
+        <p style="margin:10px 0; color:var(--aero-green); font-weight:bold;">Le micro est actif</p>
+        <button class="glossy-btn" style="background:linear-gradient(180deg, #ff9e9e, #e60000); border-color:#800;" onclick="leaveVoc()">Quitter le salon</button>
+    </div></div>
+
+    <script>
+        const socket = io();
+        let myUid = localStorage.getItem('uid') || 'u'+Date.now();
+        localStorage.setItem('uid', myUid);
+        
+        let localStream, peers = {}, curChanId = '', isAdm = false, curRoleList = [], usersMemory = {};
+
+        socket.on('connect', () => socket.emit('authenticate', myUid));
+        
+        socket.on('profile_saved', p => { 
+            document.getElementById('my-av').src = p.avatar; 
+            document.getElementById('my-n').innerText = p.username;
+            document.getElementById('pn').value = p.username;
+            document.getElementById('pa').value = p.avatar;
+            document.getElementById('pb').value = p.bio;
+        });
+
+        socket.on('load_servers', srvs => {
+            const l = document.getElementById('server-list');
+            l.innerHTML = `<div class="sphere" onclick="joinS('global')">A</div>`;
+            srvs.forEach(s => l.innerHTML += `<div class="sphere" onclick="joinS('${s.id}')">${s.icon}</div>`);
+            l.innerHTML += `<div class="sphere" onclick="openModal('s-modal')" style="border:2px dashed #fff; background:none; color:#fff">+</div>`;
+        });
+
+        function joinS(id) { socket.emit('join_server', id); document.getElementById('chat-box').innerHTML = ''; }
+        
+        socket.on('server_info', d => {
+            document.getElementById('srv-name').innerText = d.name + (d.isOwner ? ' 👑' : '');
+            document.getElementById('adm-menu').style.display = d.isOwner ? 'block' : 'none';
+            isAdm = d.isOwner;
+        });
+
+        socket.on('update_state', d => {
+            usersMemory = d.users;
+            curRoleList = d.serverRoles;
+            
+            
+            const cl = document.getElementById('chan-list'); cl.innerHTML = '';
+            d.channels.forEach(ch => {
+                const act = ch.id === curChanId ? 'active' : '';
+                let vUsersHTML = '';
+                Object.values(d.users).filter(u => u.inVoice && u.currentVoiceChan === ch.id).forEach(u => {
+                    vUsersHTML += `<div class="v-u"><img src="${u.avatar}"> ${u.username}</div>`;
+                });
+                cl.innerHTML += `<div><div class="room ${act}" onclick="joinC('${ch.id}','${ch.name}','${ch.type}')">${ch.type==='text'?'#':'🔊'} ${ch.name}</div><div class="voice-users">${vUsersHTML}</div></div>`;
+            });
+
+            
+            const ml = document.getElementById('mem-list'); ml.innerHTML = '';
+            d.serverRoles.forEach(r => {
+                const ms = Object.values(d.users).filter(u => d.rolesMap.some(rm => rm.user_uid === u.uid && rm.roleId === r.id));
+                if(ms.length > 0) {
+                    ml.innerHTML += `<div class="role-cat">${r.name} — ${ms.length}</div>`;
+                    ms.forEach(u => ml.innerHTML += `<div class="mem" onclick="insByUid('${u.uid}')"><img src="${u.avatar}" class="avatar" style="border-color:${r.color}"><span style="color:${r.color}; font-weight:bold;">${u.username}</span></div>`);
+                }
+            });
+            const noR = Object.values(d.users).filter(u => !d.rolesMap.some(rm => rm.user_uid === u.uid));
+            if(noR.length > 0) {
+                ml.innerHTML += `<div class="role-cat">En ligne — ${noR.length}</div>`;
+                noR.forEach(u => ml.innerHTML += `<div class="mem" onclick="insByUid('${u.uid}')"><img src="${u.avatar}" class="avatar"><span>${u.username}</span></div>`);
+            }
+        });
+
+        
+        async function joinC(id, name, type) {
+            curChanId = id;
+            if(type === 'voice') {
+                try {
+                    localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    openModal('voice-modal');
+                    socket.emit('join_voice', id);
+                } catch(e) { alert("Micro bloqué"); }
+            } else {
+                socket.emit('join_channel', id);
+                document.getElementById('chat-title').innerText = '# ' + name;
+                document.getElementById('input-zone').style.visibility = 'visible';
+            }
+        }
+        function leaveVoc() { if(localStream) localStream.getTracks().forEach(t => t.stop()); socket.emit('leave_voice'); closeModal('voice-modal'); }
+
+        socket.on('user_entered_voice', data => { if(localStream) initPeer(data.socketId, true); });
+        socket.on('webrtc_signal', async d => {
+            let pc = peers[d.from];
+            if(!pc) { await initPeer(d.from, false); pc = peers[d.from]; }
+            if(d.signal.sdp) {
+                await pc.setRemoteDescription(new RTCSessionDescription(d.signal.sdp));
+                if(d.signal.sdp.type === 'offer') {
+                    const ans = await pc.createAnswer(); await pc.setLocalDescription(ans);
+                    socket.emit('webrtc_signal', { to: d.from, signal: { sdp: pc.localDescription } });
+                }
+            } else if(d.signal.candidate) await pc.addIceCandidate(new RTCIceCandidate(d.signal.candidate));
+        });
+
+        async function initPeer(tid, offer) {
+            const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+            peers[tid] = pc;
+            localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
+            pc.onicecandidate = e => e.candidate && socket.emit('webrtc_signal', { to: tid, signal: { candidate: e.candidate } });
+            pc.ontrack = e => { let a = new Audio(); a.srcObject = e.streams[0]; a.play(); };
+            if(offer) { const o = await pc.createOffer(); await pc.setLocalDescription(o); socket.emit('webrtc_signal', { to: tid, signal: { sdp: pc.localDescription } }); }
+        }
+
+        
+        function send() { const i = document.getElementById('m-in'); if(i.value) { socket.emit('send_message', i.value); i.value=''; } }
+        socket.on('receive_message', m => {
+            const b = document.getElementById('chat-box');
+            b.innerHTML += `<div class="msg"><img src="${m.avatar}" class="avatar" onclick="insByMsg('${m.senderId}')"><div class="msg-content"><b style="color:${m.color}">${m.sender}</b><p>${m.text}</p></div></div>`;
+            b.scrollTop = b.scrollHeight;
+        });
+
+        function insByMsg(sid) { const u = usersMemory[sid]; if(u) insByUid(u.uid); }
+        function insByUid(uid) {
+            const u = Object.values(usersMemory).find(user => user.uid === uid);
+            if(!u) return;
+            document.getElementById('i-n').innerText = u.username;
+            document.getElementById('i-a').src = u.avatar;
+            document.getElementById('i-b').innerText = u.bio || "Pas de bio.";
+            document.getElementById('adm-assign').style.display = (isAdm && u.uid !== myUid) ? 'block' : 'none';
+            document.getElementById('r-sel').innerHTML = curRoleList.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
+            inspectingUid = u.uid;
+            openModal('ins-modal');
+        }
+
+        let inspectingUid = "";
+        function assignR() { socket.emit('assign_role', { targetUid: inspectingUid, roleId: document.getElementById('r-sel').value }); closeModal('ins-modal'); }
+        function createR() { socket.emit('create_role', { name: document.getElementById('rn').value, color: document.getElementById('rc').value }); closeModal('role-modal'); }
+        function createC() { socket.emit('create_channel', { name: document.getElementById('cn').value, type: document.getElementById('ct').value }); closeModal('c-modal'); }
+        function createS() { socket.emit('create_server', { name: document.getElementById('sn').value, icon: document.getElementById('si').value }); closeModal('s-modal'); }
+        function saveP() { socket.emit('update_profile', { username: document.getElementById('pn').value, avatar: document.getElementById('pa').value, bio: document.getElementById('pb').value }); closeModal('p-modal'); }
+        function openModal(id) { document.getElementById(id).style.display='flex'; }
+        function closeModal(id) { document.getElementById(id).style.display='none'; }
+    </script>
+</body>
+</html>
